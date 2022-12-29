@@ -392,7 +392,13 @@ func getTxOpts(
 		}
 	}
 
-	nonce, err := cli.PendingNonceAt(ctx, crypto.PubkeyToAddress(privKey.PublicKey))
+	l1Head, err := cli.BlockNumber(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	nonce, err := cli.NonceAt(ctx, crypto.PubkeyToAddress(privKey.PublicKey), new(big.Int).SetUint64(l1Head))
+	// nonce, err := cli.PendingNonceAt(ctx, crypto.PubkeyToAddress(privKey.PublicKey))
 	if err != nil {
 		return nil, err
 	}
@@ -403,7 +409,7 @@ func getTxOpts(
 	// }
 
 	// log.Info("gasPrice", "gasPrice", gasPrice)
-	opts.GasTipCap = gasTipCap
+	opts.GasTipCap = new(big.Int).SetUint64(gasTipCap.Uint64() * 3)
 	opts.Nonce = new(big.Int).SetUint64(nonce)
 	log.Info("Nonce", "nonce", nonce)
 	// opts.GasPrice = big.NewInt(1499999992 * 10)
