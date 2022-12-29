@@ -121,18 +121,38 @@ func (p *Proposer) eventLoop() {
 		p.wg.Done()
 	}()
 
+	blockVerifiedCh := make(chan *bindings.TaikoL1ClientBlockVerified, 1000)
+	sub, err := p.rpc.TaikoL1.WatchBlockVerified(nil, blockVerifiedCh, nil)
+	if err != nil {
+		log.Crit("Create TaikoL1.BlockVerified subscription error", "error", err)
+	}
+
+	defer sub.Unsubscribe()
+
+	syncNotify := make(chan struct{}, 1)
+	reqSync := func() {
+		select {
+		case syncNotify <- struct{}{}:
+		default:
+		}
+	}
+
 	for {
 		p.updateProposingTicker()
 
 		select {
 		case <-p.ctx.Done():
 			return
-		case <-p.proposingTimer.C:
-			metrics.ProposerProposeEpochCounter.Inc(1)
-
+		case <-blockVerifiedCh:
+			log.Info("verified!!")
+			reqSync()
+		case <-syncNotify:
 			if err := p.ProposeOp(p.ctx); err != nil {
-				log.Error("Proposing operation error", "error", err)
+				log.Error("ProposeOp error", "err", err)
+				time.Sleep(10 * time.Second)
 				continue
+			} else {
+				time.Sleep(10 * time.Second)
 			}
 		}
 	}
@@ -193,12 +213,18 @@ func (p *Proposer) ProposeOp(ctx context.Context) error {
 			txListBytes: txListBytes,
 			txNum:       uint(len(txs)),
 		})
+		break
 	}
 
 	if p.AfterCommitHook != nil {
 		if err := p.AfterCommitHook(); err != nil {
 			log.Error("Run AfterCommitHook error", "error", err)
 		}
+	}
+
+	if len(commitTxListResQueue) == 0 {
+		log.Info("No faucet txs")
+		time.Sleep(60 * time.Second)
 	}
 
 	for _, res := range commitTxListResQueue {
@@ -223,8 +249,9 @@ func (p *Proposer) CommitTxList(ctx context.Context, txListBytes []byte, gasLimi
 		Beneficiary: p.l2SuggestedFeeRecipient,
 		GasLimit:    gasLimit,
 		TxListHash:  crypto.Keccak256Hash(txListBytes),
-		CommitSlot:  p.commitSlot + uint64(splittedIdx),
+		CommitSlot:  rand.Uint64(),
 	}
+	log.Info("CommitSlot1", "slot", meta.CommitSlot)
 
 	if p.protocolConstants.CommitDelayConfirmations.Cmp(common.Big0) == 0 {
 		log.Debug("No commit delay confirmation, skip committing transactions list")
@@ -285,6 +312,8 @@ func (p *Proposer) ProposeTxList(
 		return err
 	}
 
+	log.Info("CommitSlot2", "slot", meta.CommitSlot)
+
 	opts, err := getTxOpts(ctx, p.rpc.L1, p.l1ProposerPrivKey, p.rpc.L1ChainID)
 	if err != nil {
 		return err
@@ -294,6 +323,8 @@ func (p *Proposer) ProposeTxList(
 	if err != nil {
 		return err
 	}
+
+	log.Info("TX", "tx", proposeTx.Hash())
 
 	if _, err := rpc.WaitReceipt(ctx, p.rpc.L1, proposeTx); err != nil {
 		return err

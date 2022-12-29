@@ -92,8 +92,12 @@ func WaitReceipt(ctx context.Context, client *ethclient.Client, tx *types.Transa
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
+	timeout := time.After(30 * time.Second)
+
 	for {
 		select {
+		case <-timeout:
+			return nil, fmt.Errorf("timeout")
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case <-ticker.C:

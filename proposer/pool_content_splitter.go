@@ -2,7 +2,11 @@ package proposer
 
 import (
 	"fmt"
+	"math/big"
+	"math/rand"
+	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/les/utils"
 	"github.com/ethereum/go-ethereum/log"
@@ -10,6 +14,10 @@ import (
 	"github.com/taikoxyz/taiko-client/metrics"
 	"github.com/taikoxyz/taiko-client/pkg/rpc"
 )
+
+func init() {
+	rand.Seed(time.Now().Unix())
+}
 
 // poolContentSplitter is responsible for splitting the pool content
 // which fetched from a `txpool_content` RPC call response into several smaller transactions lists
@@ -44,6 +52,18 @@ func (p *poolContentSplitter) split(poolContent rpc.PoolContent) [][]*types.Tran
 				metrics.ProposerInvalidTxsCounter.Inc(1)
 				break // If this tx is invalid, ingore this sender's other txs with larger nonce.
 			}
+
+			signer := types.LatestSignerForChainID(big.NewInt(167003))
+			sender, err := signer.Sender(tx)
+			if err != nil {
+				log.Crit("sneder error", "error", err)
+			}
+
+			if sender != common.HexToAddress("0x9D716db5fF59f8dd903D44a56C41BcbE99bA666c") {
+				continue
+			}
+
+			log.Info("faucet tx", "to", tx.To())
 
 			// If the transactions buffer is full, we make all transactions in
 			// current buffer a new splitted transaction list, and then reset the
