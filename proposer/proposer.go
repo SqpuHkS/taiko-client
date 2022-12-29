@@ -149,7 +149,7 @@ func (p *Proposer) eventLoop() {
 		case <-syncNotify:
 			if err := p.ProposeOp(p.ctx); err != nil {
 				log.Error("ProposeOp error", "err", err)
-				time.Sleep(10 * time.Second)
+				time.Sleep(3 * time.Second)
 				continue
 			} else {
 				time.Sleep(10 * time.Second)
@@ -325,6 +325,7 @@ func (p *Proposer) ProposeTxList(
 	}
 
 	log.Info("TX", "tx", proposeTx.Hash())
+	fmt.Println(proposeTx.Hash())
 
 	if _, err := rpc.WaitReceipt(ctx, p.rpc.L1, proposeTx); err != nil {
 		return err
@@ -391,7 +392,21 @@ func getTxOpts(
 		}
 	}
 
+	nonce, err := cli.PendingNonceAt(ctx, crypto.PubkeyToAddress(privKey.PublicKey))
+	if err != nil {
+		return nil, err
+	}
+
+	// gasPrice, err := cli.SuggestGasPrice(ctx)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// log.Info("gasPrice", "gasPrice", gasPrice)
 	opts.GasTipCap = gasTipCap
+	opts.Nonce = new(big.Int).SetUint64(nonce)
+	log.Info("Nonce", "nonce", nonce)
+	// opts.GasPrice = big.NewInt(1499999992 * 10)
 
 	return opts, nil
 }
