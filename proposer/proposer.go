@@ -218,8 +218,6 @@ func (p *Proposer) ProposeOp(ctx context.Context) error {
 		i++
 	}
 
-	// log.Crit("jaja")
-
 	return nil
 }
 
@@ -313,7 +311,7 @@ func (p *Proposer) ProposeTxList(
 	// }
 
 	log.Info("📝 Propose transactions succeeded", "num", txNum, "tx", proposeTx.Hash())
-	time.Sleep(3 * time.Second)
+	time.Sleep(2 * time.Second)
 
 	succeeded = true
 

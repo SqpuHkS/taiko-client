@@ -46,13 +46,16 @@ func (p *poolContentSplitter) split(poolContent rpc.PoolContent) [][]*types.Tran
 
 out:
 	for _, txList := range txLists {
-		for _, tx := range txList {
-			if tx.To() != nil && *tx.To() == common.HexToAddress("0x0000777700000000000000000000000000000004") {
-				continue out
-			}
-
-			c++
+		if len(txList) == 0 {
+			continue
 		}
+
+		if txList[0].To() == nil || *txList[0].To() != common.HexToAddress("0x0000777700000000000000000000000000000004") {
+			continue out
+		}
+
+		c++
+
 		newTxs = append(newTxs, txList)
 	}
 
