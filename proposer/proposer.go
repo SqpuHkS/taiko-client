@@ -136,6 +136,7 @@ func (p *Proposer) eventLoop() {
 
 			if err := p.ProposeOp(p.ctx); err != nil {
 				log.Error("Proposing operation error", "error", err)
+				time.Sleep(15 * time.Second)
 				continue
 			}
 		}
