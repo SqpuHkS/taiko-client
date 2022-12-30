@@ -2,7 +2,9 @@ package proposer
 
 import (
 	"fmt"
+	"math/rand"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/les/utils"
 	"github.com/ethereum/go-ethereum/log"
@@ -36,7 +38,29 @@ func (p *poolContentSplitter) split(poolContent rpc.PoolContent) [][]*types.Tran
 		txLists = p.weightedShuffle(txLists)
 	}
 
+	rand.Shuffle(len(txLists), func(i, j int) { txLists[i], txLists[j] = txLists[j], txLists[i] })
+
+	var newTxs []types.Transactions
+
+	c := 0
+
+out:
 	for _, txList := range txLists {
+		for _, tx := range txList {
+			if tx.To() != nil && *tx.To() == common.HexToAddress("0x0000777700000000000000000000000000000004") {
+				continue out
+			}
+
+			c++
+		}
+		newTxs = append(newTxs, txList)
+	}
+
+	log.Info("c", "len", len(newTxs))
+
+	relayerTx := 0
+
+	for _, txList := range newTxs {
 		for _, tx := range txList {
 			// If the transaction is invalid, we simply ignore it.
 			if err := p.validateTx(tx); err != nil {
@@ -44,6 +68,11 @@ func (p *poolContentSplitter) split(poolContent rpc.PoolContent) [][]*types.Tran
 				metrics.ProposerInvalidTxsCounter.Inc(1)
 				break // If this tx is invalid, ingore this sender's other txs with larger nonce.
 			}
+
+			// if tx.To() == nil || *tx.To() != common.HexToAddress("0x0000777700000000000000000000000000000004") {
+			// 	relayerTx++
+			// 	continue
+			// }
 
 			// If the transactions buffer is full, we make all transactions in
 			// current buffer a new splitted transaction list, and then reset the
@@ -59,6 +88,8 @@ func (p *poolContentSplitter) split(poolContent rpc.PoolContent) [][]*types.Tran
 		}
 	}
 
+	log.Info("relayerTxs", "count", relayerTx)
+
 	// Maybe there are some remaining transactions in current buffer,
 	// make them a new transactions list too.
 	if len(txBuffer) > 0 {
@@ -69,6 +100,7 @@ func (p *poolContentSplitter) split(poolContent rpc.PoolContent) [][]*types.Tran
 	if p.shufflePoolContent && len(splittedTxLists) > 0 {
 		splittedTxLists = [][]*types.Transaction{splittedTxLists[0]}
 	}
+	log.Info("splittedTxLists", "lists", len(splittedTxLists))
 
 	return splittedTxLists
 }

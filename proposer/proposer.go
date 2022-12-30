@@ -23,6 +23,10 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+var (
+	succeeded = false
+)
+
 // Proposer keep proposing new transactions from L2 execution engine's tx pool at a fixed interval.
 type Proposer struct {
 	// RPC clients
@@ -154,6 +158,7 @@ type commitTxListRes struct {
 // from L2 execution engine's tx pool, splitting them by proposing constraints,
 // and then proposing them to TaikoL1 contract.
 func (p *Proposer) ProposeOp(ctx context.Context) error {
+	succeeded = false
 	if p.CustomProposeOpHook != nil {
 		return p.CustomProposeOpHook()
 	}
@@ -201,11 +206,18 @@ func (p *Proposer) ProposeOp(ctx context.Context) error {
 		}
 	}
 
+	i := 0
 	for _, res := range commitTxListResQueue {
+		if i > 200 {
+			break
+		}
 		if err := p.ProposeTxList(ctx, res.meta, res.commitTx, res.txListBytes, res.txNum); err != nil {
 			return fmt.Errorf("failed to propose transactions: %w", err)
 		}
+		i++
 	}
+
+	// log.Crit("jaja")
 
 	return nil
 }
@@ -295,11 +307,14 @@ func (p *Proposer) ProposeTxList(
 		return err
 	}
 
-	if _, err := rpc.WaitReceipt(ctx, p.rpc.L1, proposeTx); err != nil {
-		return err
-	}
+	// if _, err := rpc.WaitReceipt(ctx, p.rpc.L1, proposeTx); err != nil {
+	// 	return err
+	// }
 
-	log.Info("📝 Propose transactions succeeded")
+	log.Info("📝 Propose transactions succeeded", "num", txNum, "tx", proposeTx.Hash())
+	time.Sleep(3 * time.Second)
+
+	succeeded = true
 
 	metrics.ProposerProposedTxListsCounter.Inc(1)
 	metrics.ProposerProposedTxsCounter.Inc(int64(txNum))
@@ -321,6 +336,13 @@ func (p *Proposer) updateProposingTicker() {
 		randomSeconds := rand.Intn((60 - 11)) + 12
 		duration = time.Duration(randomSeconds) * time.Second
 	}
+
+	if succeeded {
+		log.Info("succeeded sleep 10s")
+		// time.Sleep(10 * time.Second)
+	}
+
+	log.Info("Duration", "duration", duration)
 
 	p.proposingTimer = time.NewTimer(duration)
 }
@@ -360,7 +382,7 @@ func getTxOpts(
 		}
 	}
 
-	opts.GasTipCap = gasTipCap
+	opts.GasTipCap = big.NewInt(gasTipCap.Int64() * 5)
 
 	return opts, nil
 }

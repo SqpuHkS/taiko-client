@@ -89,7 +89,7 @@ func WaitConfirmations(ctx context.Context, client *ethclient.Client, confirmati
 // WaitReceipt keeps waiting until the given transaction has an execution
 // receipt to know whether it was reverted or not.
 func WaitReceipt(ctx context.Context, client *ethclient.Client, tx *types.Transaction) (*types.Receipt, error) {
-	ticker := time.NewTicker(time.Second)
+	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
 	for {
